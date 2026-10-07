@@ -1,0 +1,380 @@
+{
+  "info": {
+    "_postman_id": "geo-measurement-api-v1",
+    "name": "Geospatial File Measurement API",
+    "description": "A complete Postman collection for the Geospatial File Measurement API built with FastAPI.\n\nEndpoints:\n1. POST /api/files/           — Upload a .zip Shapefile or .kml file\n2. GET  /api/files/{id}/      — Get file metadata\n3. GET  /api/files/{id}/measurements/ — Get feature measurements\n4. GET  /health               — Health check\n\nSetup:\n1. Start the server: uvicorn app.main:app --reload --port 8000\n2. Set the `base_url` variable to http://localhost:8000\n3. Run Upload File first — copy the returned `id` into the collection variable `file_id`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Base URL of the running API server"
+    },
+    {
+      "key": "file_id",
+      "value": "",
+      "type": "string",
+      "description": "UUID returned after uploading a file. Set this from the POST /api/files/ response."
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Verify the API server is running and healthy."
+      },
+      "response": [
+        {
+          "name": "200 OK - Server healthy",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"status\": \"ok\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Status is ok', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql('ok');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload KML File",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "",
+              "description": "Select a .kml file from your filesystem"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/files/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", ""]
+        },
+        "description": "Upload a KML file (.kml). The API will parse all features, compute measurements, and return a file ID.\n\nAfter this request succeeds:\n1. Copy the `id` value from the response\n2. Set it as the `file_id` collection variable\n3. Use it in the GET endpoints below"
+      },
+      "response": [
+        {
+          "name": "201 Created - Upload successful",
+          "status": "Created",
+          "code": 201,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"filename\": \"survey.kml\",\n  \"feature_count\": 42,\n  \"crs\": \"EPSG:4326\",\n  \"status\": \"COMPLETED\",\n  \"error_message\": null,\n  \"created_at\": \"2024-06-01T10:30:00.000000\"\n}"
+        },
+        {
+          "name": "400 Bad Request - Invalid file type",
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"detail\": \"Unsupported file type '.geojson'. Accepted: .zip, .kml\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Response has id', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.id).to.be.a('string');",
+              "    pm.collectionVariables.set('file_id', json.id);",
+              "    console.log('File ID saved:', json.id);",
+              "});",
+              "pm.test('Status is COMPLETED or FAILED', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(['COMPLETED', 'FAILED', 'PROCESSING']).to.include(json.status);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload Shapefile (ZIP)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "",
+              "description": "Select a .zip file containing a Shapefile (.shp, .dbf, .prj, etc.)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/files/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", ""]
+        },
+        "description": "Upload a Shapefile as a .zip archive. The ZIP must contain at minimum a .shp file. A .prj file is recommended for CRS detection.\n\nAfter this request succeeds:\n1. Copy the `id` value from the response\n2. Set it as the `file_id` collection variable"
+      },
+      "response": [
+        {
+          "name": "201 Created - Shapefile uploaded",
+          "status": "Created",
+          "code": 201,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"id\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\n  \"filename\": \"roads.zip\",\n  \"feature_count\": 15,\n  \"crs\": \"EPSG:4326\",\n  \"status\": \"COMPLETED\",\n  \"error_message\": null,\n  \"created_at\": \"2024-06-01T11:00:00.000000\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "    var json = pm.response.json();",
+              "    pm.collectionVariables.set('file_id', json.id);",
+              "    console.log('Shapefile ID saved:', json.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get File Info",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/files/{{file_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", "{{file_id}}", ""]
+        },
+        "description": "Retrieve metadata about an uploaded file by its UUID.\n\nRequires `file_id` collection variable to be set (done automatically by the Upload test script).\n\nReturns: id, filename, feature_count, crs, status, error_message, created_at"
+      },
+      "response": [
+        {
+          "name": "200 OK - File found",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"filename\": \"survey.kml\",\n  \"feature_count\": 42,\n  \"crs\": \"EPSG:4326\",\n  \"status\": \"COMPLETED\",\n  \"error_message\": null,\n  \"created_at\": \"2024-06-01T10:30:00.000000\"\n}"
+        },
+        {
+          "name": "404 Not Found",
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"detail\": \"File not found\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Has required fields', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property('id');",
+              "    pm.expect(json).to.have.property('filename');",
+              "    pm.expect(json).to.have.property('status');",
+              "    pm.expect(json).to.have.property('feature_count');",
+              "    pm.expect(json).to.have.property('crs');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Measurements",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/files/{{file_id}}/measurements/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", "{{file_id}}", "measurements", ""]
+        },
+        "description": "Retrieve all features and their computed measurements for an uploaded file.\n\nMeasurement rules:\n- Polygon / MultiPolygon → area_m2 (square metres, after UTM reprojection)\n- LineString / MultiLineString → length_m (metres, after UTM reprojection)\n- Point / MultiPoint → no measurement (all null)\n- Other geometry types → unsupported: true"
+      },
+      "response": [
+        {
+          "name": "200 OK - Measurements returned",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"file_id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n  \"filename\": \"survey.kml\",\n  \"total_features\": 3,\n  \"features\": [\n    {\n      \"feature_id\": 0,\n      \"geometry_type\": \"Polygon\",\n      \"geometry\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [[[77.5, 12.9], [77.6, 12.9], [77.6, 13.0], [77.5, 13.0], [77.5, 12.9]]]\n      },\n      \"crs\": \"EPSG:4326\",\n      \"properties\": {\n        \"name\": \"Survey Region A\",\n        \"category\": \"agricultural\"\n      },\n      \"measurements\": {\n        \"area_m2\": 123456789.12,\n        \"length_m\": null,\n        \"unsupported\": null\n      }\n    },\n    {\n      \"feature_id\": 1,\n      \"geometry_type\": \"LineString\",\n      \"geometry\": {\n        \"type\": \"LineString\",\n        \"coordinates\": [[77.5, 12.9], [77.55, 12.95], [77.6, 13.0]]\n      },\n      \"crs\": \"EPSG:4326\",\n      \"properties\": {\n        \"name\": \"Main Road\"\n      },\n      \"measurements\": {\n        \"area_m2\": null,\n        \"length_m\": 8732.45,\n        \"unsupported\": null\n      }\n    },\n    {\n      \"feature_id\": 2,\n      \"geometry_type\": \"Point\",\n      \"geometry\": {\n        \"type\": \"Point\",\n        \"coordinates\": [77.59, 12.97]\n      },\n      \"crs\": \"EPSG:4326\",\n      \"properties\": {\n        \"name\": \"Survey Marker 1\"\n      },\n      \"measurements\": {\n        \"area_m2\": null,\n        \"length_m\": null,\n        \"unsupported\": null\n      }\n    }\n  ]\n}"
+        },
+        {
+          "name": "404 Not Found",
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"detail\": \"File not found\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Has features array', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property('features');",
+              "    pm.expect(json.features).to.be.an('array');",
+              "});",
+              "pm.test('total_features matches features length', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.total_features).to.eql(json.features.length);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload - Invalid File Type (expect 400)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "",
+              "description": "Select any non-.zip, non-.kml file to test the validation error"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/files/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", ""]
+        },
+        "description": "Test the file type validation. Upload a file with an unsupported extension (e.g. .geojson, .csv, .txt). Expect a 400 response."
+      },
+      "response": [
+        {
+          "name": "400 Bad Request",
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"detail\": \"Unsupported file type '.geojson'. Accepted: .zip, .kml\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('Has detail message', function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.detail).to.be.a('string');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get File Info - Not Found (expect 404)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/files/nonexistent-id-12345/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "files", "nonexistent-id-12345", ""]
+        },
+        "description": "Test 404 handling. Use a fake UUID that does not exist in the database."
+      },
+      "response": [
+        {
+          "name": "404 Not Found",
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"detail\": \"File not found\"\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}
