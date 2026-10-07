@@ -447,11 +447,113 @@ calculate_measurements(geom_geojson: dict, crs_str: str)
 
 ## Testing with Postman
 
-Import the file `geospatial_api_postman_collection.json` into Postman:
+A ready-to-import Postman collection is included: `geospatial_api_postman_collection.json`
 
-1. Open Postman → **Import** → select the JSON file
-2. Set the environment variable `base_url` to `http://localhost:8000`
-3. Run the **Upload File** request first — copy the `id` from the response
-4. Paste the `id` into the **Get File Info** and **Get Measurements** requests
+It contains **7 requests** with pre-written test scripts that automatically save the `file_id` variable after upload — no manual copy-pasting needed.
 
-See [Testing with Postman](#testing-with-postman-1) section below for detailed steps.
+### Prerequisites
+- Server running at `http://localhost:8000`
+- [Postman Desktop App](https://www.postman.com/downloads/) (browser version requires the Desktop Agent for localhost)
+
+### Import the Collection
+
+1. Open Postman Desktop
+2. Click **Import** (top left)
+3. Drag and drop `geospatial_api_postman_collection.json` into the import window
+4. Click **Import** — the collection **"Geospatial File Measurement API"** appears in your sidebar
+
+The collection variable `base_url` is pre-set to `http://localhost:8000`. No environment setup needed.
+
+### Requests in the Collection
+
+| # | Request | Method | URL | What it tests |
+|---|---|---|---|---|
+| 1 | Health Check | GET | `/health` | Server is running |
+| 2 | Upload KML File | POST | `/api/files/` | Upload a `.kml` file |
+| 3 | Upload Shapefile (ZIP) | POST | `/api/files/` | Upload a `.zip` shapefile |
+| 4 | Get File Info | GET | `/api/files/{{file_id}}/` | File metadata |
+| 5 | Get Measurements | GET | `/api/files/{{file_id}}/measurements/` | Feature measurements |
+| 6 | Upload - Invalid File Type | POST | `/api/files/` | Expect 400 error |
+| 7 | Get File Info - Not Found | GET | `/api/files/nonexistent-id/` | Expect 404 error |
+
+### Step-by-Step Test Flow
+
+**Step 1 — Health Check**
+- Click **Health Check** → Send
+- Expected: `200 OK` → `{"status": "ok"}`
+
+**Step 2 — Upload a KML file**
+- Click **Upload KML File**
+- Go to **Body** tab → **form-data**
+- Click the type dropdown on the `file` key → change from `Text` to **`File`**
+- Click **Select Files** → pick your `.kml` file
+- Click **Send**
+- Expected: `201 Created`
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "filename": "sample_test.kml",
+  "feature_count": 7,
+  "crs": "EPSG:4326",
+  "status": "COMPLETED",
+  "error_message": null,
+  "created_at": "2026-10-07T10:45:34.633251"
+}
+```
+> The test script automatically saves `id` as `{{file_id}}` for the next requests.
+
+**Step 3 — Get File Info**
+- Click **Get File Info** → Send
+- `{{file_id}}` is filled automatically
+- Expected: `200 OK` with the same file metadata
+
+**Step 4 — Get Measurements**
+- Click **Get Measurements** → Send
+- Expected: `200 OK` with all features and measurements
+```json
+{
+  "file_id": "3fa85f64-...",
+  "filename": "sample_test.kml",
+  "total_features": 7,
+  "features": [
+    {
+      "feature_id": 0,
+      "geometry_type": "Polygon",
+      "crs": "EPSG:4326",
+      "properties": {"name": "Survey Region A"},
+      "measurements": { "area_m2": 123456789.12 }
+    },
+    {
+      "feature_id": 2,
+      "geometry_type": "LineString",
+      "crs": "EPSG:4326",
+      "properties": {"name": "Main Road"},
+      "measurements": { "length_m": 21083.45 }
+    },
+    {
+      "feature_id": 4,
+      "geometry_type": "Point",
+      "crs": "EPSG:4326",
+      "properties": {"name": "Survey Marker 1"},
+      "measurements": {}
+    }
+  ]
+}
+```
+
+**Step 5 — Error handling tests**
+- **Upload - Invalid File Type**: upload any non-.zip, non-.kml file → expect `400 Bad Request`
+- **Get File Info - Not Found**: uses a fake ID → expect `404 Not Found`
+
+### Sample Test File
+
+A sample KML file with 7 features (2 Polygons, 2 LineStrings, 3 Points) is included for testing:
+
+```
+test_files/sample_test.kml
+```
+
+This file covers all geometry types and measurement scenarios:
+- Polygons → returns `area_m2` after UTM reprojection
+- LineStrings → returns `length_m` after UTM reprojection  
+- Points → returns empty measurements `{}`
