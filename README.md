@@ -4,21 +4,37 @@ A FastAPI backend service that accepts Shapefile (`.zip`) or KML (`.kml`) upload
 
 ---
 
+## Live Demo
+
+The API is deployed on Render:
+
+| | |
+|---|---|
+| **Base URL** | https://geospatial-measurement-api.onrender.com |
+| **Swagger UI** | https://geospatial-measurement-api.onrender.com/docs |
+| **Health Check** | https://geospatial-measurement-api.onrender.com/health |
+
+> Note: Render free tier spins down after 15 minutes of inactivity. The first request may take 30–60 seconds to wake up.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Tech Stack](#tech-stack)
-3. [Setup — Run Locally](#setup--run-locally)
-4. [API Documentation](#api-documentation)
+3. [Live Demo](#live-demo)
+4. [Setup — Run Locally](#setup--run-locally)
+5. [Deploy on Render](#deploy-on-render)
+6. [API Documentation](#api-documentation)
    - [POST /api/files/](#post-apifiles)
    - [GET /api/files/{id}/](#get-apifilesid)
    - [GET /api/files/{id}/measurements/](#get-apifilesidmeasurements)
-5. [Architecture](#architecture)
+7. [Architecture](#architecture)
    - [Application Structure](#application-structure)
    - [File Processing Flow](#file-processing-flow)
    - [Measurement Calculation Flow](#measurement-calculation-flow)
    - [CRS Handling](#crs-handling)
-6. [Design Decisions](#design-decisions)
+8. [Design Decisions](#design-decisions)
 7. [Testing with Postman](#testing-with-postman)
 
 ---
@@ -87,6 +103,64 @@ The API is now running at:
 - **Health check:** http://localhost:8000/health
 
 > The SQLite database (`geospatial.db`) and `uploads/` directory are created automatically on first run.
+
+---
+
+## Deploy on Render
+
+### One-time setup (free tier)
+
+**Step 1 — Push code to GitHub** (already done)
+```
+https://github.com/AditiMishra2003/geospatial-measurement-api
+```
+
+**Step 2 — Create a Render account**
+- Go to https://render.com and sign up (free)
+- Connect your GitHub account
+
+**Step 3 — Create a new Web Service**
+1. Click **New +** → **Web Service**
+2. Connect the repo: `AditiMishra2003/geospatial-measurement-api`
+3. Fill in the settings:
+
+| Setting | Value |
+|---|---|
+| Name | `geospatial-measurement-api` |
+| Region | Singapore (or closest to you) |
+| Branch | `main` |
+| Root Directory | `geospatial_api` |
+| Runtime | `Python 3` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Instance Type | **Free** |
+
+4. Click **Create Web Service**
+
+**Step 4 — Add a Disk (for file uploads)**
+1. Go to your service → **Disks** tab
+2. Click **Add Disk**
+3. Set:
+   - Name: `uploads`
+   - Mount Path: `/opt/render/project/src/uploads`
+   - Size: `1 GB`
+
+**Step 5 — Add Environment Variable**
+1. Go to **Environment** tab
+2. Add: `RENDER` = `true`
+
+**Step 6 — Deploy**
+- Render auto-deploys on every push to `main`
+- First deploy takes ~5 minutes (installs GDAL/GeoPandas)
+- Your API will be live at: `https://geospatial-measurement-api.onrender.com`
+
+### Subsequent deploys
+Every `git push origin main` triggers an automatic redeploy on Render.
+
+### Free tier limitations
+- Spins down after 15 min of inactivity (cold start ~30–60s)
+- 512 MB RAM — sufficient for this workload
+- 1 GB disk for uploaded files
 
 ---
 
