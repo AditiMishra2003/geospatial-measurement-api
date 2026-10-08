@@ -14,7 +14,7 @@ The API is deployed on Render:
 | **Swagger UI** | https://geospatial-measurement-api.onrender.com/docs |
 | **Health Check** | https://geospatial-measurement-api.onrender.com/health |
 
-> Note: Render free tier spins down after 15 minutes of inactivity. The first request may take 30–60 seconds to wake up.
+> **Free tier:** No credit card required. Spins down after 15 min of inactivity — first request after that takes ~30–60s to wake up.
 
 ---
 
@@ -106,61 +106,72 @@ The API is now running at:
 
 ---
 
-## Deploy on Render
+## Deploy on Render (100% Free)
 
-### One-time setup (free tier)
+This project is configured for Render's **completely free tier** — no credit card, no paid disk.
 
-**Step 1 — Push code to GitHub** (already done)
-```
-https://github.com/AditiMishra2003/geospatial-measurement-api
-```
+> Uploaded files are stored in `/tmp` during processing. Since all parsed features and measurements are saved in SQLite immediately after upload, the raw file is no longer needed after processing.
 
-**Step 2 — Create a Render account**
-- Go to https://render.com and sign up (free)
-- Connect your GitHub account
+### Step 1 — Sign up on Render
+- Go to **https://render.com**
+- Click **Get Started for Free**
+- Sign up with your **GitHub account** (easiest — no manual linking needed)
 
-**Step 3 — Create a new Web Service**
+### Step 2 — Create a New Web Service
 1. Click **New +** → **Web Service**
-2. Connect the repo: `AditiMishra2003/geospatial-measurement-api`
-3. Fill in the settings:
+2. Find and select the repo: **`AditiMishra2003/geospatial-measurement-api`**
+3. Click **Connect**
+
+### Step 3 — Configure the Service
+Fill in exactly these settings:
 
 | Setting | Value |
 |---|---|
-| Name | `geospatial-measurement-api` |
-| Region | Singapore (or closest to you) |
-| Branch | `main` |
-| Root Directory | `geospatial_api` |
-| Runtime | `Python 3` |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Instance Type | **Free** |
+| **Name** | `geospatial-measurement-api` |
+| **Region** | Singapore or Oregon (closest to you) |
+| **Branch** | `main` |
+| **Root Directory** | `geospatial_api` |
+| **Runtime** | `Python 3` |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| **Instance Type** | **Free** ✅ |
 
-4. Click **Create Web Service**
+### Step 4 — Add Environment Variable
+Scroll down to **Environment Variables** and add:
 
-**Step 4 — Add a Disk (for file uploads)**
-1. Go to your service → **Disks** tab
-2. Click **Add Disk**
-3. Set:
-   - Name: `uploads`
-   - Mount Path: `/opt/render/project/src/uploads`
-   - Size: `1 GB`
+| Key | Value |
+|---|---|
+| `RENDER` | `true` |
 
-**Step 5 — Add Environment Variable**
-1. Go to **Environment** tab
-2. Add: `RENDER` = `true`
+### Step 5 — Deploy
+- Click **Create Web Service**
+- First build takes ~5–8 minutes (installing GeoPandas/GDAL)
+- Watch the build logs — you'll see `Uvicorn running on...` when it's ready
+- Your live URL will be: `https://geospatial-measurement-api.onrender.com`
 
-**Step 6 — Deploy**
-- Render auto-deploys on every push to `main`
-- First deploy takes ~5 minutes (installs GDAL/GeoPandas)
-- Your API will be live at: `https://geospatial-measurement-api.onrender.com`
+### Step 6 — Test the live API
+Once deployed, open in your browser:
+```
+https://geospatial-measurement-api.onrender.com/docs
+```
+Full Swagger UI — test all endpoints directly from the browser.
+
+Or hit the health check:
+```
+https://geospatial-measurement-api.onrender.com/health
+```
 
 ### Subsequent deploys
-Every `git push origin main` triggers an automatic redeploy on Render.
+Every `git push origin main` triggers an **automatic redeploy** — no manual steps needed.
 
-### Free tier limitations
-- Spins down after 15 min of inactivity (cold start ~30–60s)
-- 512 MB RAM — sufficient for this workload
-- 1 GB disk for uploaded files
+### Free tier notes
+| | |
+|---|---|
+| Cost | **$0 — completely free** |
+| RAM | 512 MB (sufficient for this workload) |
+| Cold start | ~30–60s after 15 min of inactivity |
+| Uploaded files | Stored in `/tmp` — cleared on restart (data already in DB) |
+| Auto-deploy | Yes, on every push to `main` |
 
 ---
 

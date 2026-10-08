@@ -7,7 +7,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-    disk:
-      name: uploads
-      mountPath: /opt/render/project/src/uploads
-      sizeGB: 1
+      - key: RENDER
+        value: "true"
+    # No disk — uploaded files go to /tmp (free tier compatible)
+    # Parsed feature data is persisted in SQLite DB
