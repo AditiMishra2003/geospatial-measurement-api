@@ -10,9 +10,9 @@ The API is deployed on Render:
 
 | | |
 |---|---|
-| **Base URL** | https://geospatial-measurement-api.onrender.com |
-| **Swagger UI** | https://geospatial-measurement-api.onrender.com/docs |
-| **Health Check** | https://geospatial-measurement-api.onrender.com/health |
+| **Base URL** | https://geospatial-measurement-api-bzxy.onrender.com |
+| **Swagger UI** | https://geospatial-measurement-api-bzxy.onrender.com/docs |
+| **Health Check** | https://geospatial-measurement-api-bzxy.onrender.com/health |
 
 > **Free tier:** No credit card required. Spins down after 15 min of inactivity — first request after that takes ~30–60s to wake up.
 
