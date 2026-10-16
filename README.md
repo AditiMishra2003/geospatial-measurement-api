@@ -8,7 +8,7 @@ A full-stack application with a **FastAPI backend** and **React frontend** that 
 
 | | URL |
 |---|---|
-| **Frontend (React)** | https://geospatial-frontend.netlify.app *(deploy to update)* |
+| **Frontend (React)** | https://geospatial-measurement-api-sable.vercel.app |
 | **API Base URL** | https://geospatial-measurement-api-bzxy.onrender.com |
 | **Swagger UI** | https://geospatial-measurement-api-bzxy.onrender.com/docs |
 | **Health Check** | https://geospatial-measurement-api-bzxy.onrender.com/health |
