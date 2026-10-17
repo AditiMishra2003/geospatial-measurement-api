@@ -3,10 +3,11 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.database import SessionLocal
 from app.dependencies import get_db
 from app.models import GeoFile, Feature
 from app.schemas import GeoFileResponse, MeasurementsResponse, FeatureResponse, MeasurementInfo
@@ -27,9 +28,32 @@ def _validate_extension(filename: str) -> str:
     return suffix
 
 
-@router.post("/", response_model=GeoFileResponse, status_code=status.HTTP_201_CREATED)
-async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload a geospatial file (.zip shapefile or .kml) and process it."""
+def _run_processing_in_background(file_id: str, filepath: str, filename: str) -> None:
+    """
+    Background task wrapper — opens its own DB session so it is
+    independent of the request-scoped session that has already closed.
+    """
+    db = SessionLocal()
+    try:
+        process_geo_file(db, file_id, filepath, filename)
+    finally:
+        db.close()
+
+
+@router.post("/", response_model=GeoFileResponse, status_code=status.HTTP_202_ACCEPTED)
+async def upload_file(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload a geospatial file (.zip shapefile or .kml).
+
+    Returns **202 Accepted** immediately with status ``PENDING``.
+    Processing (parsing + measurements) runs in the background.
+    Poll ``GET /api/files/{id}/`` until ``status`` is ``COMPLETED`` or ``FAILED``,
+    then fetch results from ``GET /api/files/{id}/measurements/``.
+    """
     _validate_extension(file.filename)
 
     file_id = str(uuid.uuid4())
@@ -49,13 +73,13 @@ async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db
     db.commit()
     db.refresh(geo_file)
 
-    try:
-        process_geo_file(db, file_id, str(dest_path), file.filename)
-    except Exception:
-        pass
+    # Queue processing — runs AFTER this response is sent to the client.
+    # Uses its own DB session (request session closes when this function returns).
+    background_tasks.add_task(
+        _run_processing_in_background, file_id, str(dest_path), file.filename
+    )
 
-    db.refresh(geo_file)
-    return geo_file
+    return geo_file  # status = "PENDING" at this point
 
 
 @router.get("/{file_id}/", response_model=GeoFileResponse)

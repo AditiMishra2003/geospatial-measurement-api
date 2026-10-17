@@ -212,7 +212,8 @@ This project is configured for Render's **completely free tier** — no credit c
 
 ### POST /api/files/
 
-Upload a geospatial file for processing.
+Upload a geospatial file. Returns **202 Accepted** immediately — processing happens in the background.
+Poll `GET /api/files/{id}/` until `status` is `COMPLETED` or `FAILED`, then fetch results.
 
 **Request**
 | Property | Value |
@@ -227,23 +228,31 @@ curl -X POST https://geospatial-measurement-api-bzxy.onrender.com/api/files/ \
   -F "file=@survey.kml"
 ```
 
-**Response — 201 Created**
+**Response — 202 Accepted** *(returned immediately, before processing)*
 ```json
 {
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "filename": "survey.kml",
-  "feature_count": 42,
-  "crs": "EPSG:4326",
-  "status": "COMPLETED",
+  "feature_count": null,
+  "crs": null,
+  "status": "PENDING",
   "error_message": null,
   "created_at": "2024-06-01T10:30:00.000000"
 }
 ```
 
+**Recommended polling flow**
+```
+POST /api/files/              → 202  { status: "PENDING",     id: "abc-123" }
+GET  /api/files/abc-123/      → 200  { status: "PROCESSING" }   (check again)
+GET  /api/files/abc-123/      → 200  { status: "COMPLETED",  feature_count: 42 }
+GET  /api/files/abc-123/measurements/  → 200  [ all features ]
+```
+
 **Status values**
 | Status | Meaning |
 |---|---|
-| `PENDING` | File saved, not yet processed |
+| `PENDING` | File saved, queued for processing |
 | `PROCESSING` | Parsing and measurement in progress |
 | `COMPLETED` | All features processed successfully |
 | `FAILED` | Processing error — see `error_message` |
@@ -357,6 +366,10 @@ POST /api/files/
     ├─► Validate extension (.zip / .kml) → 400 if invalid
     ├─► Save file to uploads/<uuid>.<ext>
     ├─► INSERT GeoFile row (status = PENDING)
+    ├─► Queue background task (process_geo_file)
+    └─► Return 202 Accepted immediately ← client gets response here
+
+    [Background — after response is sent]
     └─► process_geo_file()
             ├─► status → PROCESSING
             ├─► _parse_file()
@@ -366,7 +379,8 @@ POST /api/files/
             ├─► Bulk INSERT Feature rows
             └─► status → COMPLETED (or FAILED on exception)
 
-    ◄── Return GeoFileResponse (201)
+Poll GET /api/files/{id}/ until status = COMPLETED
+Then GET /api/files/{id}/measurements/ for results
 ```
 
 ---
@@ -419,7 +433,7 @@ calculate_measurements(geom_geojson, crs_str)
 | **Database** | SQLite via SQLAlchemy | Zero-config, sufficient for single-instance | PostgreSQL+PostGIS — better for production scale |
 | **Geospatial library** | GeoPandas + Shapely | High-level API, ships GDAL wheels on Windows | Fiona directly — more control but more code |
 | **Projection strategy** | Dynamic UTM from centroid | Accurate worldwide, results in metres | EPSG:3857 Web Mercator — distorts area significantly |
-| **Processing mode** | Synchronous (in-request) | Simple, no external dependencies | Celery + Redis — warranted for large files |
+| **Processing mode** | Async background (BackgroundTasks) | Returns 202 immediately; client polls status; no external dependencies | Celery + Redis — warranted for distributed workers; Synchronous — simpler but blocks request |
 | **Geometry storage** | GeoJSON string in SQLite | No PostGIS, directly serialisable to JSON | WKB binary — more compact but harder to debug |
 | **Frontend styling** | Inline CSS | Zero dependencies, full control, fast build | Tailwind / MUI — adds bundle weight |
 
@@ -440,8 +454,8 @@ Contains **7 requests** with test scripts that automatically save `file_id` afte
 | # | Request | Method | What it tests |
 |---|---|---|---|
 | 1 | Health Check | GET | Server is running |
-| 2 | Upload KML File | POST | Upload `.kml`, auto-saves `file_id` |
-| 3 | Upload Shapefile (ZIP) | POST | Upload `.zip` shapefile |
+| 2 | Upload KML File | POST | Upload `.kml`, auto-saves `file_id`; expect **202** |
+| 3 | Upload Shapefile (ZIP) | POST | Upload `.zip` shapefile; expect **202** |
 | 4 | Get File Info | GET | File metadata using `{{file_id}}` |
 | 5 | Get Measurements | GET | All feature measurements |
 | 6 | Upload - Invalid File Type | POST | Expect 400 error |
@@ -464,7 +478,7 @@ These are planned improvements and extensions for future versions of this projec
 - **Database migrations** — add Alembic for schema versioning and safe production migrations
 
 ### ⚡ Performance & Scalability
-- **Async background processing** — move file processing to Celery + Redis background workers; return a job ID immediately instead of blocking the request
+- **Celery + Redis workers** — replace FastAPI BackgroundTasks with distributed Celery workers for high-concurrency or multi-instance deployments
 - **Large file support** — stream-parse large Shapefiles instead of loading into memory; add chunked feature batch inserts
 - **Caching** — cache measurement results with Redis so repeated requests for the same file ID are served instantly
 - **Pagination** — add `?page=` and `?page_size=` query params to `GET /api/files/{id}/measurements/` for files with thousands of features
