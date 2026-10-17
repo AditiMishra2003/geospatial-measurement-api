@@ -21,16 +21,42 @@ export default function ResultsPage({ file, onBack }) {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('All')
+  const [currentFile, setCurrentFile] = useState(file)
 
   useEffect(() => {
-    fetchMeasurements()
+    loadResults()
   }, [file.id])
 
-  const fetchMeasurements = async () => {
+  const loadResults = async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/files/${file.id}/measurements/`)
+      let liveFile = file
+
+      // If status is not yet COMPLETED/FAILED, poll until it is
+      if (liveFile.status !== 'COMPLETED' && liveFile.status !== 'FAILED') {
+        const MAX_POLLS = 30
+        const POLL_INTERVAL = 2000
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await new Promise(r => setTimeout(r, POLL_INTERVAL))
+          const pollRes = await fetch(`${API_BASE}/api/files/${liveFile.id}/`)
+          if (pollRes.ok) {
+            liveFile = await pollRes.json()
+            setCurrentFile(liveFile)
+          }
+          if (liveFile.status === 'COMPLETED' || liveFile.status === 'FAILED') break
+        }
+      } else {
+        setCurrentFile(liveFile)
+      }
+
+      if (liveFile.status === 'FAILED') {
+        setLoading(false)
+        return
+      }
+
+      // Fetch measurements once COMPLETED
+      const res = await fetch(`${API_BASE}/api/files/${liveFile.id}/measurements/`)
       if (!res.ok) throw new Error('Failed to fetch measurements')
       const data = await res.json()
       setMeasurements(data)
@@ -41,7 +67,7 @@ export default function ResultsPage({ file, onBack }) {
     }
   }
 
-  const statusStyle = STATUS_STYLES[file.status] || STATUS_STYLES.PENDING
+  const statusStyle = STATUS_STYLES[currentFile.status] || STATUS_STYLES.PENDING
 
   // Get unique geometry types for filter
   const geomTypes = measurements
@@ -103,15 +129,15 @@ export default function ResultsPage({ file, onBack }) {
       }}>
         <div>
           <div style={{ color: '#64748b', fontSize: '0.75em', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>Filename</div>
-          <div style={{ color: '#f1f5f9', fontWeight: 600, wordBreak: 'break-all' }}>📄 {file.filename}</div>
+          <div style={{ color: '#f1f5f9', fontWeight: 600, wordBreak: 'break-all' }}>📄 {currentFile.filename}</div>
         </div>
         <div>
           <div style={{ color: '#64748b', fontSize: '0.75em', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>Features</div>
-          <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '1.4em' }}>{file.feature_count ?? '—'}</div>
+          <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '1.4em' }}>{currentFile.feature_count ?? '—'}</div>
         </div>
         <div>
           <div style={{ color: '#64748b', fontSize: '0.75em', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>CRS</div>
-          <div style={{ color: '#38bdf8', fontWeight: 600, fontFamily: 'monospace' }}>{file.crs ?? '—'}</div>
+          <div style={{ color: '#38bdf8', fontWeight: 600, fontFamily: 'monospace' }}>{currentFile.crs ?? '—'}</div>
         </div>
         <div>
           <div style={{ color: '#64748b', fontSize: '0.75em', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>Status</div>
@@ -125,17 +151,17 @@ export default function ResultsPage({ file, onBack }) {
         </div>
         <div>
           <div style={{ color: '#64748b', fontSize: '0.75em', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>File ID</div>
-          <div style={{ color: '#475569', fontSize: '0.75em', fontFamily: 'monospace', wordBreak: 'break-all' }}>{file.id}</div>
+          <div style={{ color: '#475569', fontSize: '0.75em', fontFamily: 'monospace', wordBreak: 'break-all' }}>{currentFile.id}</div>
         </div>
       </div>
 
       {/* Error / Failed state */}
-      {file.status === 'FAILED' && file.error_message && (
+      {currentFile.status === 'FAILED' && currentFile.error_message && (
         <div style={{
           background: '#450a0a', border: '1px solid #ef4444', borderRadius: '10px',
           padding: '16px', color: '#fca5a5', marginBottom: '20px'
         }}>
-          <strong>Processing failed:</strong> {file.error_message}
+          <strong>Processing failed:</strong> {currentFile.error_message}
         </div>
       )}
 
@@ -175,7 +201,9 @@ export default function ResultsPage({ file, onBack }) {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#64748b' }}>
             <div style={{ fontSize: '2em', marginBottom: '12px' }}>⏳</div>
-            Loading measurements...
+            {currentFile.status === 'PENDING' || currentFile.status === 'PROCESSING'
+              ? 'Processing file… checking status'
+              : 'Loading measurements…'}
           </div>
         ) : error ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#f87171' }}>

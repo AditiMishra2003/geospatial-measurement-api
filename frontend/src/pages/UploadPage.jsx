@@ -47,6 +47,7 @@ export default function UploadPage({ onSuccess }) {
     setUploading(true)
     setError(null)
     try {
+      // Step 1: Upload — gets 202 Accepted with status=PENDING immediately
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch(`${API_BASE}/api/files/`, {
@@ -58,7 +59,23 @@ export default function UploadPage({ onSuccess }) {
         throw new Error(err.detail || 'Upload failed')
       }
       const data = await res.json()
-      onSuccess(data)
+
+      // Step 2: Poll GET /api/files/{id}/ until COMPLETED or FAILED
+      const fileId = data.id
+      let polledFile = data
+      const MAX_POLLS = 30      // max ~60 seconds
+      const POLL_INTERVAL = 2000 // every 2 seconds
+
+      for (let i = 0; i < MAX_POLLS; i++) {
+        if (polledFile.status === 'COMPLETED' || polledFile.status === 'FAILED') break
+        await new Promise(r => setTimeout(r, POLL_INTERVAL))
+        const pollRes = await fetch(`${API_BASE}/api/files/${fileId}/`)
+        if (pollRes.ok) {
+          polledFile = await pollRes.json()
+        }
+      }
+
+      onSuccess(polledFile)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -156,7 +173,7 @@ export default function UploadPage({ onSuccess }) {
         }}
       >
         {uploading ? (
-          <span>⏳ Processing... (may take 30–60s on first load)</span>
+          <span>⏳ Uploading &amp; processing… please wait</span>
         ) : (
           <span>🚀 Upload &amp; Analyse</span>
         )}
